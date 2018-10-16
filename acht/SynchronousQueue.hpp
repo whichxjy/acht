@@ -1,5 +1,5 @@
-#ifndef _MESSAGE_QUEUE_HPP_
-#define _MESSAGE_QUEUE_HPP_
+#ifndef _SYNCHRONOUS_QUEUE_HPP_
+#define _SYNCHRONOUS_QUEUE_HPP_
 
 #include <queue>
 #include <mutex>
@@ -7,7 +7,7 @@
 
 namespace acht {
 	template <typename T>
-	class MessageQueue {
+	class SynchronousQueue {
 	private:
 		std::queue<T> myQueue;
 		int queueMaxSize;
@@ -16,18 +16,18 @@ namespace acht {
 		std::condition_variable notFull;
 
 	public:
-		MessageQueue(int maxSize = 999999999) : queueMaxSize(maxSize) {
+		SynchronousQueue(int maxSize = 999999999) : queueMaxSize(maxSize) {
 		}
 
-		~MessageQueue() = default;
+		~SynchronousQueue() = default;
 
 		// No copy
-		MessageQueue(const MessageQueue&) = delete;
+		SynchronousQueue(const SynchronousQueue&) = delete;
 		
 		// No assignment
-		MessageQueue& operator=(const MessageQueue&) = delete;
+		SynchronousQueue& operator=(const SynchronousQueue&) = delete;
 
-		void Push(T msg) {
+		void Put(T msg) {
 			std::lock_guard<std::mutex> lock(myMutex);
 			while(IsFull()) {
 				notFull.wait(myMutex);
@@ -36,7 +36,7 @@ namespace acht {
 			notEmpty.notify_one;
 		}		
 
-		bool Pop(T& msg, bool Blocked = true) {
+		bool Take(T& msg, bool Blocked = true) {
 			std::lock_guard<std::mutex> lock(myMutex);
 			if (Blocked) {
 				while (IsEmpty()) {
@@ -66,7 +66,11 @@ namespace acht {
 			std::lock_guard<std::mutex> lock(myMutex);
 			return myQueue.size() == 0;
 		}
-
+		
+		int GetMaxSize() const {
+			return queueMaxSize;
+		}
+		
 		void SetMaxSize(int maxSize) {
 			std::lock_guard<std::mutex> lock(myMutex);
 			queueMaxSize = maxSize;
