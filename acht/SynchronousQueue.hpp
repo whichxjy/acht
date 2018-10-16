@@ -32,7 +32,7 @@ namespace acht {
 			while(IsFull()) {
 				notFull.wait(myMutex);
 			}
-			myQueue.push(msg);
+			myQueue.emplace(std::move(msg));
 			notEmpty.notify_one;
 		}		
 
