@@ -14,9 +14,26 @@ namespace acht {
 		std::mutex myMutex;
 		std::condition_variable notEmpty;
 		std::condition_variable notFull;
+		bool needToStop;
+		
+		/***********************************************************
+		 *  A helper function that adds element to the queue,
+		 *  waiting if queue is full.
+		 ***********************************************************/
+		template <typename T>
+		void putHelper(T&& elem) {
+			std::lock_guard<std::mutex> lock(myMutex);
+			while(isFull()) {
+				notFull.wait(myMutex);
+			}
+			if (needToStop)
+				return;
+			myQueue.emplace(std::forward<T>(elem));
+			notEmpty.notify_one();
+		}
 
 	public:
-		SynchronousQueue(int maxSize = 9999) : queueMaxSize(maxSize) {
+		SynchronousQueue(int maxSize) : queueMaxSize(maxSize), needToStop(false) {
 		}
 
 		~SynchronousQueue() = default;
@@ -29,20 +46,18 @@ namespace acht {
 		
 		/***********************************************************
 		 *  Add the specified element to this queue, 
-		 *  waiting if necessary for another thread to receive it.
+		 *  waiting if queue is full.
 		 ***********************************************************/
 		void put(const T& elem) {
-			std::lock_guard<std::mutex> lock(myMutex);
-			while(isFull()) {
-				notFull.wait(myMutex);
-			}
-			myQueue.emplace(std::move(elem));
-			notEmpty.notify_one;
-		}		
+			putHelper(std::forward<T>(elem));
+		}
+		
+		void put(T&& elem) {
+			putHelper(std::forward<T>(elem));
+		}
 		
 		/***********************************************************
-		 *  Retrieve and remove the head of this queue,
-		 *  waiting if necessary for another thread to insert it.
+		 *  Retrieve and remove the head of this queue.
 		 *  
 		 *  There are two modes for this operation: Blocked or not.
 		 *  If "Blocking" is true, then wait if the queue is empty.
@@ -61,10 +76,38 @@ namespace acht {
 				if (isEmpty())
 					return false;
 			}
+			if (needToStop)
+				return false;
 			elem = myQueue.front();
 			myQueue.pop();
-			notFull.notify_one;
+			notFull.notify_one();
 			return true;
+		}
+		
+		/***********************************************************
+		 *  Retrieve and remove all the elements,
+		 *  waiting if queue is empty.
+		 ***********************************************************/
+		void takeAll(std::queue<T> other) {
+			std::lock_guard<std::mutex> lock(myMutex);
+			while (isEmpty()){
+				notEmpty.wait(myMutex);
+			}
+			if (needToStop)
+				return;
+			other = std::move(myQueue);
+			notFull.notify_one();
+		}
+		
+		/***********************************************************
+		 *  Stop all operations
+		 ***********************************************************/
+		void stop() {
+			std::lock_guard<std::mutex> lock(myMutex);
+			needToStop = true;
+			// Unblocks all threads waiting currently
+			notFull.notify_all();
+			notEmpty.notify_all();
 		}
 		
 		// Get the size of queue
