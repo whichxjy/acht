@@ -96,6 +96,13 @@ namespace acht {
 			std::lock_guard<std::mutex> lock(myMutex);
 			queueMaxSize = maxSize;
 		}
+		
+		// Clear all the elements
+		void clear() {
+			std::lock_guard<std::mutex> lock(myMutex);
+			while (!myQueue.empty())
+				myQueue.pop();
+		}
 
 	}
 }
