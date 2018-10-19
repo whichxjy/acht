@@ -36,7 +36,9 @@ namespace acht {
 		SynchronousQueue(int maxSize) : queueMaxSize(maxSize), needToStop(false) {
 		}
 
-		~SynchronousQueue() = default;
+		~SynchronousQueue() {
+			stop();	
+		}
 
 		// No copy
 		SynchronousQueue(const SynchronousQueue&) = delete;
