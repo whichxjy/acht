@@ -1,4 +1,6 @@
 example.cc
+example
+Makefile
 
 # Prerequisites
 *.d

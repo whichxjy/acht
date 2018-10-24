@@ -10,6 +10,7 @@
 namespace acht {
 	class ThreadPool {
 	private:
+		using Task = std::function<void()>;
 		int numThreads; 	// The number of threads
 		bool shutdown;
 		std::vector<std::shared_ptr<std::thread>> myThreads;
@@ -23,20 +24,19 @@ namespace acht {
 				task();
 			}
 		}
-		
+
 	public:
-		using Task = std::function<void()>;
 		ThreadPool(int _numThreads) : myTasks(_numThreads), shutdown(true) {
 			for (int i = 0; i < _numThreads; ++i) {
-				myThreads.push_back(std::make_shared<std::thread>([this] {run()} ));
+				myThreads.push_back(std::make_shared<std::thread>([this] {run();} ));
 			}
 		}
 		
 		~ThreadPool() {
-			shutdown();
+			shutdownNow();
 		}
 		
-		void shutdown() {
+		void shutdownNow() {
 			shutdown = true;
 			myTasks.stop();
 			
@@ -48,8 +48,9 @@ namespace acht {
 			myThreads.clear();
 		}
 		
+		
 		void submit(const Task& task) {
-			myTasks.put(task);
+			myTasks.put(std::forward<Task>(task));
 		}
 		
 		void submit(Task&& task) {

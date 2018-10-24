@@ -4,6 +4,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <functional>
 
 namespace acht {
 	template <typename T>
@@ -11,7 +12,7 @@ namespace acht {
 	private:
 		std::queue<T> myQueue;
 		int queueMaxSize;
-		std::mutex myMutex;
+		mutable std::mutex myMutex;
 		std::condition_variable notEmpty;
 		std::condition_variable notFull;
 		bool needToStop;
@@ -20,15 +21,15 @@ namespace acht {
 		 *  A helper function that adds element to the queue,
 		 *  waiting if queue is full.
 		 ***********************************************************/
-		template <typename T>
-		void putHelper(T&& elem) {
-			std::lock_guard<std::mutex> lock(myMutex);
+		template <typename Type>
+		void putHelper(Type&& elem) {
+			std::unique_lock<std::mutex> lock(myMutex);
 			while(isFull()) {
-				notFull.wait(myMutex);
+				notFull.wait(lock);
 			}
 			if (needToStop)
 				return;
-			myQueue.emplace(std::forward<T>(elem));
+			myQueue.emplace(std::forward<Type>(elem));
 			notEmpty.notify_one();
 		}
 
@@ -66,11 +67,11 @@ namespace acht {
 		 *  If "Blocking" is false, then give up if the queue is empty.
 		 ***********************************************************/
 		bool take(T& elem, bool Blocking = true) {
-			std::lock_guard<std::mutex> lock(myMutex);
+			std::unique_lock<std::mutex> lock(myMutex);
 			if (Blocking) {
 				// blocking mode
 				while (isEmpty()) {
-				    notEmpty.wait(myMutex);
+				    notEmpty.wait(lock);
 				}
 			}
 			else {
@@ -91,9 +92,9 @@ namespace acht {
 		 *  waiting if queue is empty.
 		 ***********************************************************/
 		void takeAll(std::queue<T> other) {
-			std::lock_guard<std::mutex> lock(myMutex);
+			std::unique_lock<std::mutex> lock(myMutex);
 			while (isEmpty()){
-				notEmpty.wait(myMutex);
+				notEmpty.wait(lock);
 			}
 			if (needToStop)
 				return;
@@ -149,7 +150,7 @@ namespace acht {
 				myQueue.pop();
 		}
 
-	}
+	};
 }
 
 #endif
