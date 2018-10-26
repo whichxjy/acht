@@ -52,8 +52,8 @@ namespace acht {
 		SynchronousQueue(int maxSize) : queueMaxSize(maxSize), needToStop(false) {
 		}
 
-		// if the queue wasn't stoped, then stop it. 
 		~SynchronousQueue() {
+			// If the queue wasn't stoped, then stop it. 
 			stop();	
 		}
 
