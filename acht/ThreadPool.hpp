@@ -5,7 +5,6 @@
 #include <vector>
 #include <memory>
 #include <thread>
-#include <functional>
 
 namespace acht {
 	class ThreadPool {
@@ -15,20 +14,22 @@ namespace acht {
 		bool shutdown;
 		std::vector<std::shared_ptr<std::thread>> myThreads;
 		SynchronousQueue<Task> myTasks;
+		std::once_flag onceFlag;
 
 		void run() {
 			while (!shutdown) {
 				Task task;
-				myTasks.take(task);
-				// Execute
-				task();
+				if (myTasks.take(task)) {
+					task();
+				}
 			}
 		}
 
 	public:
-		ThreadPool(int _numThreads) : myTasks(_numThreads), shutdown(true) {
+		ThreadPool(int _numThreads = std::thread::hardware_concurrency(), int maxTask = 100) 
+		: myTasks(maxTask), shutdown(false) {
 			for (int i = 0; i < _numThreads; ++i) {
-				myThreads.push_back(std::make_shared<std::thread>([this] {run();} ));
+				myThreads.push_back(std::make_shared<std::thread>([this] { run(); } ));
 			}
 		}
 		
@@ -36,27 +37,26 @@ namespace acht {
 			shutdownNow();
 		}
 		
-		void shutdownNow() {
-			shutdown = true;
-			myTasks.stop();
-			
-			for (auto thread : myThreads) {
-				if (thread)
-					thread->join();
-			}
-			
-			myThreads.clear();
-		}
-		
-		
 		void submit(const Task& task) {
-			myTasks.put(std::forward<Task>(task));
+			myTasks.put(task);
 		}
 		
 		void submit(Task&& task) {
 			myTasks.put(std::forward<Task>(task));
 		}
 		
+		void shutdownNow() {
+			std::call_once(onceFlag, [this]{
+				shutdown = true;
+				myTasks.stop();	
+				for (auto thread : myThreads) {
+					if (thread)
+						thread->join();
+				}
+				myThreads.clear();
+			});
+		}
+
 		void setMaxTask(int maxTask) {
 			myTasks.setMaxSize(maxTask);	
 		}

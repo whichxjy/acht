@@ -16,6 +16,7 @@ namespace acht {
 		std::condition_variable notEmpty;
 		std::condition_variable notFull;
 		bool needToStop;
+		std::once_flag onceFlag;
 		
 		/***********************************************************
 		 *  A helper function that adds element to the queue,
@@ -24,7 +25,7 @@ namespace acht {
 		template <typename Type>
 		void putHelper(Type&& elem) {
 			std::unique_lock<std::mutex> lock(myMutex);
-			while(isFull()) {
+			while(full()) {
 				notFull.wait(lock);
 			}
 			if (needToStop)
@@ -33,10 +34,25 @@ namespace acht {
 			notEmpty.notify_one();
 		}
 
+		/***********************************************************
+		 *  Check whether the queue is full without lock.
+		 ***********************************************************/
+		bool full() const {
+			return myQueue.size() == queueMaxSize;
+		}
+
+		/***********************************************************
+		 *  Check whether the queue is empty without lock.
+		 ***********************************************************/
+		bool empty() const {
+			return myQueue.size() == 0;
+		}
+
 	public:
 		SynchronousQueue(int maxSize) : queueMaxSize(maxSize), needToStop(false) {
 		}
 
+		// if the queue wasn't stoped, then stop it. 
 		~SynchronousQueue() {
 			stop();	
 		}
@@ -52,7 +68,7 @@ namespace acht {
 		 *  waiting if queue is full.
 		 ***********************************************************/
 		void put(const T& elem) {
-			putHelper(std::forward<T>(elem));
+			putHelper(elem);
 		}
 		
 		void put(T&& elem) {
@@ -70,17 +86,18 @@ namespace acht {
 			std::unique_lock<std::mutex> lock(myMutex);
 			if (Blocking) {
 				// blocking mode
-				while (isEmpty()) {
+				while (empty() && !needToStop) {
 				    notEmpty.wait(lock);
 				}
 			}
 			else {
 				// non-blocking mode
-				if (isEmpty())
+				if (empty())
 					return false;
 			}
-			if (needToStop)
+			if (needToStop) {
 				return false;
+			}
 			elem = myQueue.front();
 			myQueue.pop();
 			notFull.notify_one();
@@ -93,7 +110,7 @@ namespace acht {
 		 ***********************************************************/
 		void takeAll(std::queue<T> other) {
 			std::unique_lock<std::mutex> lock(myMutex);
-			while (isEmpty()){
+			while (empty()){
 				notEmpty.wait(lock);
 			}
 			if (needToStop)
@@ -106,11 +123,14 @@ namespace acht {
 		 *  Stop all operations
 		 ***********************************************************/
 		void stop() {
-			std::lock_guard<std::mutex> lock(myMutex);
-			needToStop = true;
-			// Unblocks all threads waiting currently
-			notFull.notify_all();
-			notEmpty.notify_all();
+			// Avoid calling more than once
+			std::call_once(onceFlag, [this]{
+				std::lock_guard<std::mutex> lock(myMutex);
+				needToStop = true;
+				// Unblocks all threads waiting currently
+				notFull.notify_all();
+				notEmpty.notify_all();
+			});
 		}
 		
 		// Get the size of queue
