@@ -10,12 +10,16 @@ namespace acht {
 	class ThreadPool {
 	private:
 		using Task = std::function<void()>;
-		int numThreads; 	// The number of threads
 		bool shutdown;
 		std::vector<std::shared_ptr<std::thread>> myThreads;
 		SynchronousQueue<Task> myTasks;
-		std::once_flag onceFlag;
-
+		std::once_flag onceFlag; // It's used as an argument for call_once.
+		
+		/***********************************************************
+		 *  Run the thread until the pool is shut down. 
+		 *  Execute every task it takes from the task queue, waiting
+		 *  if the task queue is empty.
+		 ***********************************************************/
 		void run() {
 			while (!shutdown) {
 				Task task;
@@ -26,29 +30,51 @@ namespace acht {
 		}
 
 	public:
-		ThreadPool(int _numThreads = std::thread::hardware_concurrency(), int maxTask = 100) 
+		/***********************************************************
+		 *  Create a thread pool. Set the number of threads and max
+		 *  tasks number.
+		 ***********************************************************/
+		ThreadPool(int numThreads = std::thread::hardware_concurrency(), int maxTask = 100) 
 		: myTasks(maxTask), shutdown(false) {
-			for (int i = 0; i < _numThreads; ++i) {
+			// Create worker threads
+			for (int i = 0; i < numThreads; ++i) {
 				myThreads.push_back(std::make_shared<std::thread>([this] { run(); } ));
 			}
 		}
 		
+		/***********************************************************
+		 *  Shut down the pool if it wasn't shut down.
+		 ***********************************************************/
 		~ThreadPool() {
 			shutdownNow();
 		}
 		
+		/***********************************************************
+		 *  Submit task(lvalue) to the task queue.
+		 ***********************************************************/
 		void submit(const Task& task) {
 			myTasks.put(task);
 		}
 		
+		/***********************************************************
+		 *  Submit task(rvalue) to the task queue.
+		 ***********************************************************/
 		void submit(Task&& task) {
 			myTasks.put(std::forward<Task>(task));
 		}
 		
+		/***********************************************************
+		 *  Shut down the pool.
+		 ***********************************************************/
 		void shutdownNow() {
+			// Avoid calling more than once
 			std::call_once(onceFlag, [this]{
 				shutdown = true;
+				
+				// Stop the task queue
 				myTasks.stop();	
+				
+				// Wait until submitted tasks are finish
 				for (auto thread : myThreads) {
 					if (thread)
 						thread->join();
@@ -57,6 +83,9 @@ namespace acht {
 			});
 		}
 
+		/***********************************************************
+		 *  Set max tasks number.
+		 ***********************************************************/
 		void setMaxTask(int maxTask) {
 			myTasks.setMaxSize(maxTask);	
 		}
