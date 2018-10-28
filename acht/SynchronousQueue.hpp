@@ -16,7 +16,6 @@ namespace acht {
 		std::condition_variable notEmpty;
 		std::condition_variable notFull;
 		bool needToStop;
-		std::once_flag onceFlag;
 		
 		/***********************************************************
 		 *  A helper function that adds element to the queue,
@@ -25,7 +24,7 @@ namespace acht {
 		template <typename Type>
 		void putHelper(Type&& elem) {
 			std::unique_lock<std::mutex> lock(myMutex);
-			while(full()) {
+			while (!needToStop && full()) {
 				notFull.wait(lock);
 			}
 			if (needToStop)
@@ -86,18 +85,18 @@ namespace acht {
 			std::unique_lock<std::mutex> lock(myMutex);
 			if (Blocking) {
 				// blocking mode
-				while (empty() && !needToStop) {
+				while (!needToStop && empty()) {
 				    notEmpty.wait(lock);
 				}
 			}
 			else {
 				// non-blocking mode
 				if (empty())
-					return false;
+					return false; 
 			}
-			if (needToStop) {
+			if (needToStop)
 				return false;
-			}
+			// Take element
 			elem = myQueue.front();
 			myQueue.pop();
 			notFull.notify_one();
@@ -105,32 +104,55 @@ namespace acht {
 		}
 		
 		/***********************************************************
-		 *  Retrieve and remove all the elements,
-		 *  waiting if queue is empty.
+		 *  Retrieve and remove all elements of this queue.
+		 *  
+		 *  There are two modes for this operation: Blocked or not.
+		 *  If "Blocking" is true, then wait if the queue is empty.
+		 *  If "Blocking" is false, then give up if the queue is empty.
 		 ***********************************************************/
-		void takeAll(std::queue<T> other) {
+		void takeAll(std::queue<T> &otherQueue, bool Blocking = true) {
 			std::unique_lock<std::mutex> lock(myMutex);
-			while (empty()){
-				notEmpty.wait(lock);
+			if (Blocking) {
+				// blocking mode
+				while (!needToStop && empty()) {
+				    notEmpty.wait(lock);
+				}
+			}
+			else {
+				// non-blocking mode
+				if (empty())
+					return false; 
 			}
 			if (needToStop)
-				return;
-			other = std::move(myQueue);
+				return false;
+			// Take all elements
+			otherQueue = std::move(myQueue);
 			notFull.notify_one();
+			return true;
+		}
+		
+		/***********************************************************
+		 *  Start queue
+		 ***********************************************************/
+		void start() {
+			std::lock_guard<std::mutex> lock(myMutex);
+			// If the queue was stoped, then start it. 
+			if (needToStop)
+				needToStop = false;
 		}
 		
 		/***********************************************************
 		 *  Stop all operations
 		 ***********************************************************/
 		void stop() {
-			// Avoid calling more than once
-			std::call_once(onceFlag, [this]{
-				std::lock_guard<std::mutex> lock(myMutex);
+			std::lock_guard<std::mutex> lock(myMutex);
+			// If the queue wasn't stoped, then stop it. 
+			if (!needToStop) {
 				needToStop = true;
 				// Unblocks all threads waiting currently
 				notFull.notify_all();
 				notEmpty.notify_all();
-			});
+			}
 		}
 		
 		// Get the size of queue
