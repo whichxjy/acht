@@ -5,15 +5,16 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <atomic>
 
 namespace acht {
+	
 	class ThreadPool {
 	private:
 		using Task = std::function<void()>;
-		bool shutdown;
+		std::atomic<bool> shutdown;
 		std::vector<std::shared_ptr<std::thread>> myThreads;
 		SynchronousQueue<Task> myTasks;
-		std::once_flag onceFlag; // It's used as an argument for call_once.
 		
 		/***********************************************************
 		 *  Run the thread until the pool is shut down. 
@@ -29,6 +30,15 @@ namespace acht {
 			}
 		}
 
+		/***********************************************************
+		 *  Create worker threads
+		 ***********************************************************/
+		void makeThreads(int numThreads) {
+			for (int i = 0; i < numThreads; ++i) {
+				myThreads.push_back(std::make_shared<std::thread>([this] { run(); } ));
+			}
+		}
+
 	public:
 		/***********************************************************
 		 *  Create a thread pool. Set the number of threads and max
@@ -36,10 +46,7 @@ namespace acht {
 		 ***********************************************************/
 		ThreadPool(int numThreads = std::thread::hardware_concurrency(), int maxTask = 100) 
 		: myTasks(maxTask), shutdown(false) {
-			// Create worker threads
-			for (int i = 0; i < numThreads; ++i) {
-				myThreads.push_back(std::make_shared<std::thread>([this] { run(); } ));
-			}
+			makeThreads(numThreads);
 		}
 		
 		/***********************************************************
@@ -62,13 +69,25 @@ namespace acht {
 		void submit(Task&& task) {
 			myTasks.put(std::forward<Task>(task));
 		}
-		
+
+		/***********************************************************
+		 *  If the pool was shut down, restart it.
+		 ***********************************************************/
+		void start(int numThreads = std::thread::hardware_concurrency(), int maxTask = 100) {
+			if (shutdown) {
+				shutdown = false;
+				makeThreads(numThreads);
+				// Restart the task queue
+				myTasks.start();
+				myTasks.setMaxSize(maxTask);
+			}
+		}
+
 		/***********************************************************
 		 *  Shut down the pool.
 		 ***********************************************************/
 		void shutdownNow() {
-			// Avoid calling more than once
-			std::call_once(onceFlag, [this]{
+			if (!shutdown) {
 				shutdown = true;
 				
 				// Stop the task queue
@@ -80,7 +99,7 @@ namespace acht {
 						thread->join();
 				}
 				myThreads.clear();
-			});
+			}
 		}
 
 		/***********************************************************

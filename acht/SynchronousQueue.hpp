@@ -7,6 +7,7 @@
 #include <functional>
 
 namespace acht {
+	
 	template <typename T>
 	class SynchronousQueue {
 	private:
@@ -110,7 +111,7 @@ namespace acht {
 		 *  If "Blocking" is true, then wait if the queue is empty.
 		 *  If "Blocking" is false, then give up if the queue is empty.
 		 ***********************************************************/
-		void takeAll(std::queue<T> &otherQueue, bool Blocking = true) {
+		bool takeAll(std::queue<T> &otherQueue, bool Blocking = true) {
 			std::unique_lock<std::mutex> lock(myMutex);
 			if (Blocking) {
 				// blocking mode
