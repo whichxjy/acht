@@ -28,10 +28,9 @@ namespace acht {
 			DEBUG
 		};
 
-		static std::shared_ptr<Logger> getLogger(Level level = Level::INFO, 
-			const std::string& logFilePath = "acht_log.log") {
+		static std::shared_ptr<Logger> getLogger(Level level = Level::DEBUG) {
 			if (myLogger == nullptr || myLogger->myLevel != level)
-				myLogger = std::shared_ptr<Logger>(new Logger(level, logFilePath));
+				myLogger = std::shared_ptr<Logger>(new Logger(level));
 			return myLogger;
 		}
 
@@ -98,9 +97,16 @@ namespace acht {
 		}
 
 		bool setLogFilePath(const std::string& logFilePath) {
+			std::lock_guard<std::mutex> lock(myMutex);
 			if (myLogFilePath == logFilePath)
 				return true;
+			myLogFilePath = logFilePath;
 			return setFileStream(logFilePath);
+		}
+
+		const std::string getLogFilePath() const {
+			std::lock_guard<std::mutex> lock(myMutex);
+			return myLogFilePath;
 		}
 
 
@@ -111,10 +117,11 @@ namespace acht {
 		std::shared_ptr<std::ofstream> logFileStream;
 		std::shared_ptr<std::thread> writeThread;
 		std::atomic<bool> needToStop;
+		mutable std::mutex myMutex;
 		static std::shared_ptr<Logger> myLogger;
 
 
-		Logger(Level level, const std::string& logFilePath) 
+		Logger(Level level, const std::string& logFilePath = "tt.log") 
 		: myLevel(level), logQueue(100), myLogFilePath(logFilePath), needToStop(false) {
 			setFileStream(logFilePath);
 			writeThread = std::make_shared<std::thread>([this] { runWriteThread(); } );
@@ -138,7 +145,7 @@ namespace acht {
 			while (!needToStop) {
 				std::string log;
 				if (logQueue.take(log) && logFileStream) {
-					*logFileStream << std::unitbuf << log << std::endl;
+					*logFileStream << log << std::endl;
 				}
 			}
 		}
@@ -169,6 +176,11 @@ namespace acht {
 
 	std::shared_ptr<Logger> Logger::myLogger = nullptr;
 
+	#define LOG_FATAL(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::FATAL, LOG_MESSAGE);
+	#define LOG_ERROR(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::ERROR, LOG_MESSAGE);
+	#define LOG_WARN(LOG_MESSAGE) Logger::getLogger()->write(acht::::Level::WARN, LOG_MESSAGE);
+	#define LOG_INFO(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::INFO, LOG_MESSAGE);
+	#define LOG_DEBUG(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::DEBUG, LOG_MESSAGE);
 }
 
 #endif
