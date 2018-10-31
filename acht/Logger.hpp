@@ -11,13 +11,15 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <atomic>
 
 namespace acht {
 
 	class Logger {
-
-
 	public:
+		using LogRecord = std::string;
+		using LogMessage = std::string;
+
 		enum class Level {
 			FATAL,
 			ERROR,
@@ -26,15 +28,40 @@ namespace acht {
 			DEBUG
 		};
 
-		static std::shared_ptr<Logger> getLogger(Level level = Level::INFO) {
-			if (myLogger = nullptr)
-				myLogger = std::shared_ptr<Logger>(new Logger(level));
+		static std::shared_ptr<Logger> getLogger(Level level = Level::INFO, 
+			const std::string& logFilePath = "acht_log.log") {
+			if (myLogger == nullptr || myLogger->myLevel != level)
+				myLogger = std::shared_ptr<Logger>(new Logger(level, logFilePath));
 			return myLogger;
 		}
 
-		// ~Logger() {
-		// 	
-		// }
+		static void destroyLogger() {
+			myLogger = nullptr;
+		}
+
+		~Logger() {
+			stop();
+			if (logFileStream) {
+				logFileStream->close();
+				logFileStream = nullptr;
+			}
+		}
+
+		
+		void write(Level level, const LogMessage& logMsg) {
+			if (level > myLevel)
+				return;
+
+			// Create log record
+			std::stringstream logRecordStream;
+			logRecordStream << getCurrentTime()
+				<< " [" << levelToString(level) << "] "
+				<< logMsg;
+
+			// Add the log record to log queue
+			logQueue.put(logRecordStream.str());
+		}
+
 
 		void setLevel(Level level) {
 			myLevel = level;
@@ -45,19 +72,9 @@ namespace acht {
 		}
 
 		const std::string getLevelString() const {
-			switch(myLevel) {
-				case Level::FATAL:
-					return "FATAL";
-				case Level::ERROR:
-					return "ERROR";
-				case Level::WARN:
-					return "WARN";
-				case Level::INFO:
-					return "INFO";
-				case Level::DEBUG:
-					return "DEBUG";
-			}		
+			levelToString(myLevel);
 		}
+
 
 		void stop() {
 			if (!needToStop) {
@@ -72,63 +89,73 @@ namespace acht {
 			}
 		}
 
-	private:
-		using LogRecord = std::string;
-		using LogMessage = std::string;
-
-		Level myLevel;
-		SynchronousQueue<LogRecord> logQueue;
-		std::shared_ptr<std::ofstream> logFileStream;
-		std::shared_ptr<std::thread> writeThread;
-		bool needToStop;
-		static std::shared_ptr<Logger> myLogger;
-
-		// const std::string levelString[5] = {
-		// 	"FATAL",
-		// 	"ERROR",
-		// 	"WARN",
-		// 	"INFO",
-		// 	"DEBUG"
-		// };
-
-		Logger(Level level) : myLevel(level), logQueue(100), needToStop(false) {
-			initializeFileStream();
-			writeThread = std::make_shared<std::thread>([this] { run(); } );
-		}
-
-		void initializeFileStream() {
-			std::string logFileName = "acht_log.log";
-
-			logFileStream = std::make_shared<std::ofstream>();
-			logFileStream->open(logFileName, std::ofstream::app);
-
-			if (!logFileStream->is_open()) {
-				std::cerr << "Failed to open log file: " << logFileName << std::endl; 
-				logFileStream = nullptr;
+		void start() {
+			if (needToStop) {
+				needToStop = false;
+				writeThread = std::make_shared<std::thread>([this] { runWriteThread(); } );
+				logQueue.start();
 			}
 		}
 
-		void write(Level level, const LogMessage& logMsg) {
-			if (level > myLevel)
-				return;
-
-			// Create log record
-			std::stringstream logRecordStream;
-			logRecordStream << getCurrentTime()
-				<< "[" << getLevelString() << "] "
-				<< logMsg;
-
-			// Add the log record to log queue
-			logQueue.put(logRecordStream.str());
+		bool setLogFilePath(const std::string& logFilePath) {
+			if (myLogFilePath == logFilePath)
+				return true;
+			return setFileStream(logFilePath);
 		}
 
-		void run() {
+
+	private:
+		SynchronousQueue<LogRecord> logQueue;
+		std::atomic<Level> myLevel;
+		std::string myLogFilePath;
+		std::shared_ptr<std::ofstream> logFileStream;
+		std::shared_ptr<std::thread> writeThread;
+		std::atomic<bool> needToStop;
+		static std::shared_ptr<Logger> myLogger;
+
+
+		Logger(Level level, const std::string& logFilePath) 
+		: myLevel(level), logQueue(100), myLogFilePath(logFilePath), needToStop(false) {
+			setFileStream(logFilePath);
+			writeThread = std::make_shared<std::thread>([this] { runWriteThread(); } );
+		}
+
+		bool setFileStream(const std::string& logFilePath) {
+			logFileStream = std::make_shared<std::ofstream>();
+			logFileStream->open(logFilePath, std::ofstream::app);
+
+			if (!logFileStream->is_open()) {
+				std::cerr << "Failed to open log file: " << logFilePath << std::endl; 
+				logFileStream = nullptr;
+				return false;
+			}
+
+			return true;
+		}
+
+
+		void runWriteThread() {
 			while (!needToStop) {
 				std::string log;
 				if (logQueue.take(log) && logFileStream) {
-					*logFileStream << log << std::endl;
+					*logFileStream << std::unitbuf << log << std::endl;
 				}
 			}
+		}
+
+		const std::string levelToString(Level level) const {
+			switch(level) {
+				case Level::FATAL:
+					return "FATAL";
+				case Level::ERROR:
+					return "ERROR";
+				case Level::WARN:
+					return "WARN";
+				case Level::INFO:
+					return "INFO";
+				case Level::DEBUG:
+					return "DEBUG";
+			}		
 		}
 
 		std::string getCurrentTime() const {
