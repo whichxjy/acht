@@ -237,7 +237,7 @@ namespace acht {
 	***********************************************************/
 	#define LOG_FATAL(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::FATAL, LOG_MESSAGE);
 	#define LOG_ERROR(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::ERROR, LOG_MESSAGE);
-	#define LOG_WARN(LOG_MESSAGE) Logger::getLogger()->write(acht::::Level::WARN, LOG_MESSAGE);
+	#define LOG_WARN(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::WARN, LOG_MESSAGE);
 	#define LOG_INFO(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::INFO, LOG_MESSAGE);
 	#define LOG_DEBUG(LOG_MESSAGE) Logger::getLogger()->write(acht::Logger::Level::DEBUG, LOG_MESSAGE);
 }
