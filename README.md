@@ -81,7 +81,7 @@ An event is described by a descriptive message. The importance of the message is
 > -  **DEBUG**: designates fine-grained informational events that  are most useful to debug an application.
 >  - **INFO**: designates informational messages that highlight the progress of the application at coarse-grained level.
 >  - **WARN**: designates potentially harmful situations.
->  - **ERROR**:designates error events that might still allow the application to continue running.
+>  - **ERROR**: designates error events that might still allow the application to continue running.
 >  - **FATAL**: designates very severe error events that will presumably lead the application to abort.
 
 ```
