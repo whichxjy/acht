@@ -1,5 +1,5 @@
-#ifndef _SYNCHRONOUS_QUEUE_HPP_
-#define _SYNCHRONOUS_QUEUE_HPP_
+#ifndef _SYNC_QUEUE_HPP_
+#define _SYNC_QUEUE_HPP_
 
 #include <queue>
 #include <mutex>
