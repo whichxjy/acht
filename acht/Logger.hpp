@@ -101,8 +101,8 @@ namespace acht {
         /***********************************************************
          *  Get the threshold for this logger as a string.
          ***********************************************************/
-        const std::string getLevelString() const {
-            levelToString(my_level);
+        std::string getLevelString() const {
+            return levelToString(my_level);
         }
 
         /***********************************************************
@@ -170,7 +170,7 @@ namespace acht {
          *  file. The parameter "log_file_path" specifies the log file
          *  path where the log records are send to.
          ***********************************************************/
-        Logger(Level level, const std::string& log_file_path = "acht_log.log")
+        Logger(Level level, const std::string& log_file_path = "out.log")
         : my_level(level), log_queue(100), my_log_file_path(log_file_path), need_to_stop(false) {
             setFileStream(log_file_path);
             write_thread = std::make_shared<std::thread>([this] { runWriteThread(); } );
