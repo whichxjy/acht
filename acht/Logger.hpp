@@ -70,17 +70,18 @@ namespace acht {
          *  Add log record to the log queue.
          ***********************************************************/
         void write(Level level, const LogMessage& log_msg) {
-            if (level > my_level)
+            if (level > my_level) {
                 return;
+            }
 
             // Create log record
-            std::stringstream logRecordStream;
-            logRecordStream << getCurrentTime()
+            std::stringstream log_record_stream;
+            log_record_stream << getCurrentTime()
                 << " [" << levelToString(level) << "] "
                 << log_msg;
 
             // Add the log record to log queue
-            log_queue.put(logRecordStream.str());
+            log_queue.put(log_record_stream.str());
         }
 
         /***********************************************************
@@ -127,7 +128,9 @@ namespace acht {
         void start() {
             if (need_to_stop) {
                 need_to_stop = false;
-                write_thread = std::make_shared<std::thread>([this] { runWriteThread(); } );
+                write_thread = std::make_shared<std::thread>([this] {
+                    runWriteThread();
+                });
                 log_queue.start();
             }
         }
@@ -173,7 +176,9 @@ namespace acht {
         Logger(Level level, const std::string& log_file_path = "out.log")
         : my_level(level), log_queue(100), my_log_file_path(log_file_path), need_to_stop(false) {
             setFileStream(log_file_path);
-            write_thread = std::make_shared<std::thread>([this] { runWriteThread(); } );
+            write_thread = std::make_shared<std::thread>([this] {
+                runWriteThread();
+            });
         }
 
         /***********************************************************
@@ -183,13 +188,14 @@ namespace acht {
             log_file_stream = std::make_shared<std::ofstream>();
             log_file_stream->open(log_file_path, std::ofstream::app);
 
-            if (!log_file_stream->is_open()) {
+            if (log_file_stream->is_open()) {
+                return true;
+            }
+            else {
                 std::cerr << "Failed to open log file: " << log_file_path << std::endl;
                 log_file_stream = nullptr;
                 return false;
             }
-
-            return true;
         }
 
         /***********************************************************
@@ -209,7 +215,7 @@ namespace acht {
         /***********************************************************
          *  Convert a level to a string.
          ***********************************************************/
-        const std::string levelToString(Level level) const {
+        std::string levelToString(Level level) const {
             switch(level) {
                 case Level::FATAL:
                     return "FATAL";
@@ -227,11 +233,11 @@ namespace acht {
         /***********************************************************
          *  Get the current time as a string.
          ***********************************************************/
-        const std::string getCurrentTime() const {
+        std::string getCurrentTime() const {
             auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            std::stringstream tStream;
-            tStream << std::put_time(std::localtime(&time), "%Y-%m-%d %X");
-            return tStream.str();
+            std::stringstream t_stream;
+            t_stream << std::put_time(std::localtime(&time), "%Y-%m-%d %X");
+            return t_stream.str();
         }
     };
 
