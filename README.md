@@ -19,7 +19,6 @@ int main() {
     // Put the specified elements to the queue
     sync_queue.put(42);
     sync_queue.put(52);
-    sync_queue.put(52);
 
     // Retrieve and remove the head of the queue
     int element;
@@ -50,14 +49,14 @@ int main() {
     // You can initialize the number of threads
     acht::ThreadPool pool(10);
 
-    std::thread thread1([&pool]{
+    std::thread thread1([&pool] {
         // Submit a task
         pool.submit([] {
             std::cout << "Task 1" << std::endl;
         });
     });
 
-    std::thread thread2([&pool]{
+    std::thread thread2([&pool] {
         // Submit a task
         pool.submit([] {
             std::cout << "Task 2" << std::endl;
@@ -78,12 +77,17 @@ A logger object is used to track events that happen when some software runs. The
 
 An event is described by a descriptive message. The importance of the message is called "level". Each Logger has a "level" associated with it. This reflects a minimum level that this logger cares about.
 
->  Hierarchy of logging levels:
-> -  **DEBUG**: designates fine-grained informational events that  are most useful to debug an application.
->  - **INFO**: designates informational messages that highlight the progress of the application at coarse-grained level.
->  - **WARN**: designates potentially harmful situations.
->  - **ERROR**: designates error events that might still allow the application to continue running.
->  - **FATAL**: designates very severe error events that will presumably lead the application to abort.
+Hierarchy of logging levels:
+
+- **DEBUG**: designates fine-grained informational events that  are most useful to debug an application.
+
+- **INFO**: designates informational messages that highlight the progress of the application at coarse-grained level.
+
+- **WARN**: designates potentially harmful situations.
+
+- **ERROR**: designates error events that might still allow the application to continue running.
+
+- **FATAL**: designates very severe error events that will presumably lead the application to abort.
 
 ``` cpp
 #include "acht/Logger.hpp"
