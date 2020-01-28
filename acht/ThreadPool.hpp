@@ -8,34 +8,36 @@
 #include <atomic>
 
 namespace acht {
-    
+
     class ThreadPool {
     private:
         using Task = std::function<void()>;
         std::atomic<bool> shutdown;
-        std::vector<std::shared_ptr<std::thread>> myThreads;
-        SyncQueue<Task> myTasks;
-        
+        std::vector<std::shared_ptr<std::thread>> my_threads;
+        SyncQueue<Task> my_tasks;
+
         /***********************************************************
-         *  Run the thread until the pool is shut down. 
+         *  Run the thread until the pool is shut down.
          *  Execute every task it takes from the task queue, waiting
          *  if the task queue is empty.
          ***********************************************************/
         void run() {
             while (!shutdown) {
                 Task task;
-                if (myTasks.take(task)) {
+                if (my_tasks.take(task)) {
                     task();
                 }
             }
         }
 
         /***********************************************************
-         *  Create worker threads
+         *  Create worker threads.
          ***********************************************************/
-        void makeThreads(int numThreads) {
-            for (int i = 0; i < numThreads; ++i) {
-                myThreads.push_back(std::make_shared<std::thread>([this] { run(); } ));
+        void makeThreads(int thread_num) {
+            for (int i = 0; i < thread_num; ++i) {
+                my_threads.push_back(std::make_shared<std::thread>([this] {
+                    run();
+                }));
             }
         }
 
@@ -44,42 +46,42 @@ namespace acht {
          *  Create a thread pool. Set the number of threads and max
          *  tasks number.
          ***********************************************************/
-        ThreadPool(int numThreads = std::thread::hardware_concurrency(), int maxTask = 100) 
-        : myTasks(maxTask), shutdown(false) {
-            makeThreads(numThreads);
+        ThreadPool(int thread_num = std::thread::hardware_concurrency(), int maxTask = 100)
+        : my_tasks(maxTask), shutdown(false) {
+            makeThreads(thread_num);
         }
-        
+
         /***********************************************************
          *  Shut down the pool if it wasn't shut down.
          ***********************************************************/
         ~ThreadPool() {
             shutdownNow();
         }
-        
+
         /***********************************************************
          *  Submit task(lvalue) to the task queue.
          ***********************************************************/
         void submit(const Task& task) {
-            myTasks.put(task);
+            my_tasks.put(task);
         }
-        
+
         /***********************************************************
          *  Submit task(rvalue) to the task queue.
          ***********************************************************/
         void submit(Task&& task) {
-            myTasks.put(std::forward<Task>(task));
+            my_tasks.put(std::forward<Task>(task));
         }
 
         /***********************************************************
          *  If the pool was shut down, restart it.
          ***********************************************************/
-        void start(int numThreads = std::thread::hardware_concurrency(), int maxTask = 100) {
+        void start(int thread_num = std::thread::hardware_concurrency(), int maxTask = 100) {
             if (shutdown) {
                 shutdown = false;
-                makeThreads(numThreads);
+                makeThreads(thread_num);
                 // Restart the task queue
-                myTasks.start();
-                myTasks.setMaxSize(maxTask);
+                my_tasks.start();
+                my_tasks.setMaxSize(maxTask);
             }
         }
 
@@ -89,16 +91,17 @@ namespace acht {
         void shutdownNow() {
             if (!shutdown) {
                 shutdown = true;
-                
+
                 // Stop the task queue
-                myTasks.stop();    
-                
+                my_tasks.stop();
+
                 // Wait until submitted tasks are finish
-                for (auto thread : myThreads) {
-                    if (thread)
+                for (auto thread : my_threads) {
+                    if (thread) {
                         thread->join();
+                    }
                 }
-                myThreads.clear();
+                my_threads.clear();
             }
         }
 
@@ -106,10 +109,10 @@ namespace acht {
          *  Set max tasks number.
          ***********************************************************/
         void setMaxTask(int maxTask) {
-            myTasks.setMaxSize(maxTask);    
+            my_tasks.setMaxSize(maxTask);
         }
     };
-    
+
 }
 
 #endif
