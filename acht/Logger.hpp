@@ -19,7 +19,7 @@ namespace acht {
     public:
         using LogRecord = std::string;
         using LogMessage = std::string;
- 
+
         /***********************************************************
          *  The level of the events to be tracked (or the level of
          *  messages to be sent).
@@ -31,91 +31,93 @@ namespace acht {
             INFO,
             DEBUG
         };
-        
+
         /***********************************************************
-         *  Get the instance of logger. It allows only a single 
+         *  Get the instance of logger. It allows only a single
          *  instance to be created. If the parameter "level" is
          *  different form logger's level, reset it.
          ***********************************************************/
         static std::shared_ptr<Logger> getLogger(Level level = Level::DEBUG) {
-            if (myLogger == nullptr)
-                myLogger = std::shared_ptr<Logger>(new Logger(level));
-            else if (myLogger->myLevel != level)
-                myLogger->setLevel(level);
-            return myLogger;
+            if (my_logger == nullptr) {
+                my_logger = std::shared_ptr<Logger>(new Logger(level));
+            }
+            else if (my_logger->my_level != level) {
+                my_logger->setLevel(level);
+            }
+            return my_logger;
         }
 
         /***********************************************************
-         *  Destroy the logger. 
+         *  Destroy the logger.
          ***********************************************************/
         static void destroyLogger() {
-            myLogger = nullptr;
+            my_logger = nullptr;
         }
-        
+
         /***********************************************************
-         *  Destructor. 
+         *  Destructor.
          ***********************************************************/
         ~Logger() {
             // Stop the logger and close the file stream.
             stop();
-            if (logFileStream) {
-                logFileStream->close();
-                logFileStream = nullptr;
+            if (log_file_stream) {
+                log_file_stream->close();
+                log_file_stream = nullptr;
             }
         }
 
         /***********************************************************
          *  Add log record to the log queue.
          ***********************************************************/
-        void write(Level level, const LogMessage& logMsg) {
-            if (level > myLevel)
+        void write(Level level, const LogMessage& log_msg) {
+            if (level > my_level)
                 return;
 
             // Create log record
             std::stringstream logRecordStream;
             logRecordStream << getCurrentTime()
                 << " [" << levelToString(level) << "] "
-                << logMsg;
+                << log_msg;
 
             // Add the log record to log queue
-            logQueue.put(logRecordStream.str());
+            log_queue.put(logRecordStream.str());
         }
-        
+
         /***********************************************************
-         *  Set the threshold for this logger. Logging messages which 
+         *  Set the threshold for this logger. Logging messages which
          *  are less severe than this level will be ignored.
          ***********************************************************/
         void setLevel(Level level) {
-            myLevel = level;
+            my_level = level;
         }
 
         /***********************************************************
          *  Get the threshold for this logger.
          ***********************************************************/
         Level getLevel() const {
-            return myLevel;
+            return my_level;
         }
-        
+
         /***********************************************************
          *  Get the threshold for this logger as a string.
          ***********************************************************/
         const std::string getLevelString() const {
-            levelToString(myLevel);
+            levelToString(my_level);
         }
 
         /***********************************************************
          *  Stop the logger.
          ***********************************************************/
         void stop() {
-            if (!needToStop) {
-                needToStop = true;
+            if (!need_to_stop) {
+                need_to_stop = true;
 
                 // Stop the log queue
-                logQueue.stop();
+                log_queue.stop();
 
                 // Wait until all log records are written to file
-                writeThread->join();
-                writeThread = nullptr;
+                write_thread->join();
+                write_thread = nullptr;
             }
         }
 
@@ -123,64 +125,67 @@ namespace acht {
          *  If the logger was stopped, restart it.
          ***********************************************************/
         void start() {
-            if (needToStop) {
-                needToStop = false;
-                writeThread = std::make_shared<std::thread>([this] { runWriteThread(); } );
-                logQueue.start();
+            if (need_to_stop) {
+                need_to_stop = false;
+                write_thread = std::make_shared<std::thread>([this] { runWriteThread(); } );
+                log_queue.start();
             }
         }
 
         /***********************************************************
          *  Set the log file path where the log records are send to.
          ***********************************************************/
-        bool setLogFilePath(const std::string& logFilePath) {
-            std::lock_guard<std::mutex> lock(myMutex);
-            if (myLogFilePath == logFilePath)
+        bool setLogFilePath(const std::string& log_file_path) {
+            std::lock_guard<std::mutex> lock(my_mutex);
+            if (my_log_file_path == log_file_path) {
                 return true;
-            myLogFilePath = logFilePath;
-            return setFileStream(logFilePath);
+            }
+            else {
+                my_log_file_path = log_file_path;
+                return setFileStream(log_file_path);
+            }
         }
-        
+
         /***********************************************************
          *  Get the log file path where the log records are send to.
          ***********************************************************/
         const std::string getLogFilePath() const {
-            std::lock_guard<std::mutex> lock(myMutex);
-            return myLogFilePath;
+            std::lock_guard<std::mutex> lock(my_mutex);
+            return my_log_file_path;
         }
-        
+
     private:
-        SyncQueue<LogRecord> logQueue;
-        std::atomic<Level> myLevel;
-        std::string myLogFilePath;
-        std::shared_ptr<std::ofstream> logFileStream;
-        std::shared_ptr<std::thread> writeThread;
-        std::atomic<bool> needToStop;
-        mutable std::mutex myMutex;
-        static std::shared_ptr<Logger> myLogger;
+        SyncQueue<LogRecord> log_queue;
+        std::atomic<Level> my_level;
+        std::string my_log_file_path;
+        std::shared_ptr<std::ofstream> log_file_stream;
+        std::shared_ptr<std::thread> write_thread;
+        std::atomic<bool> need_to_stop;
+        mutable std::mutex my_mutex;
+        static std::shared_ptr<Logger> my_logger;
 
         /***********************************************************
-         *  A private constructor. The parameter "level" specifies 
+         *  A private constructor. The parameter "level" specifies
          *  the lowest severity that will be dispatched to the log
-         *  file. The parameter "logFilePath" specifies the log file
+         *  file. The parameter "log_file_path" specifies the log file
          *  path where the log records are send to.
          ***********************************************************/
-        Logger(Level level, const std::string& logFilePath = "acht_log.log") 
-        : myLevel(level), logQueue(100), myLogFilePath(logFilePath), needToStop(false) {
-            setFileStream(logFilePath);
-            writeThread = std::make_shared<std::thread>([this] { runWriteThread(); } );
+        Logger(Level level, const std::string& log_file_path = "acht_log.log")
+        : my_level(level), log_queue(100), my_log_file_path(log_file_path), need_to_stop(false) {
+            setFileStream(log_file_path);
+            write_thread = std::make_shared<std::thread>([this] { runWriteThread(); } );
         }
-    
+
         /***********************************************************
          *  Set file stream with the log file path.
          ***********************************************************/
-        bool setFileStream(const std::string& logFilePath) {
-            logFileStream = std::make_shared<std::ofstream>();
-            logFileStream->open(logFilePath, std::ofstream::app);
+        bool setFileStream(const std::string& log_file_path) {
+            log_file_stream = std::make_shared<std::ofstream>();
+            log_file_stream->open(log_file_path, std::ofstream::app);
 
-            if (!logFileStream->is_open()) {
-                std::cerr << "Failed to open log file: " << logFilePath << std::endl; 
-                logFileStream = nullptr;
+            if (!log_file_stream->is_open()) {
+                std::cerr << "Failed to open log file: " << log_file_path << std::endl;
+                log_file_stream = nullptr;
                 return false;
             }
 
@@ -189,14 +194,14 @@ namespace acht {
 
         /***********************************************************
          *  Run the write thread until logger is stopped.
-         *  Write every log record it takes from the log queue, 
+         *  Write every log record it takes from the log queue,
          *  waiting if the task queue is empty.
          ***********************************************************/
         void runWriteThread() {
-            while (!needToStop) {
+            while (!need_to_stop) {
                 std::string log;
-                if (logQueue.take(log) && logFileStream) {
-                    *logFileStream << log << std::endl;
+                if (log_queue.take(log) && log_file_stream) {
+                    *log_file_stream << log << std::endl;
                 }
             }
         }
@@ -216,7 +221,7 @@ namespace acht {
                     return "INFO";
                 case Level::DEBUG:
                     return "DEBUG";
-            }        
+            }
         }
 
         /***********************************************************
@@ -230,7 +235,7 @@ namespace acht {
         }
     };
 
-    std::shared_ptr<Logger> Logger::myLogger = nullptr;
+    std::shared_ptr<Logger> Logger::my_logger = nullptr;
 
     /***********************************************************
     *  Log messages to the log file.
